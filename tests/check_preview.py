@@ -8,6 +8,9 @@ data = json.loads(raw.split('=', 1)[1].strip().removesuffix(';'))
 rows = data['rows']
 assert rows and len({r['id'] for r in rows}) == len(rows)
 for row in rows:
+    if row.get('rankingEligible') is False:
+        assert all(v is None for v in row['costs'].values())
+        continue
     assert row['id'].startswith('p-')
     for n in (3, 6, 12):
         months = row['months']
@@ -30,10 +33,11 @@ with sync_playwright() as pw:
     for n in (3, 6, 12):
         page.select_option('#profile', 'all')
         page.locator(f'[data-months="{n}"]').click()
-        ids = page.locator('.result-link').evaluate_all('(links)=>links.map(a=>new URL(a.href).searchParams.get("id"))')
-        costs = {r['id']: r['costs'][str(n)] for r in rows}
+        ids = page.locator('#results .result-link').evaluate_all('(links)=>links.map(a=>new URL(a.href).searchParams.get("id"))')
+        costs = {r['id']: r['costs'][str(n)] for r in rows if r.get('rankingEligible') is not False}
         assert [costs[i] for i in ids] == sorted(costs.values())
     page.select_option('#profile', '7plus')
+    page.locator('.extras summary').click()
     page.select_option('#brand', '티플러스')
     count = page.locator('.result-link').count()
     page.locator('.result-link').first.click()
