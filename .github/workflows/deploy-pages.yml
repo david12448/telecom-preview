@@ -38,6 +38,7 @@ jobs:
       - name: Check data, filters, prices and detail pages
         run: python tests/check_preview.py
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: preview-screenshots
           path: preview-*.png
