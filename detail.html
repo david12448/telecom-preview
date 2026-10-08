@@ -2,18 +2,19 @@
 <main class="wrap">
 <a class="back" id="backLink" href="./index.html">← 목록으로 돌아가기</a>
 <article class="post" id="post">
-  <div class="demo live">공식 홈페이지와 모요를 교차검증한 실데이터입니다. 조건이 검증되지 않은 제휴혜택은 요금 순위에서 제외합니다.</div>
+  <div class="demo live">공식 홈페이지와 비교 채널을 교차검증한 실데이터입니다. 검증되지 않은 제휴혜택은 요금 순위에서 제외합니다.</div>
   <header class="post-head">
     <div class="crumb" id="crumb"></div>
     <h1 id="title">요금제 상세정보</h1>
     <div class="post-sub" id="subtitle"></div>
+    <div class="price-special" id="priceSpecial" hidden></div>
     <div class="chips" id="chips"></div>
   </header>
 
   <section class="section">
-    <h2>기간별 실제 요금</h2>
-    <div class="metrics" id="costMetrics"></div>
-    <p class="disclaimer">할인기간이 끝나는 경우 이후 정상요금을 자동으로 합산합니다. 검증된 초기비용만 합산하며, 미확인 유심비·가입비는 포함되지 않을 수 있습니다. 상품권·포인트·제휴혜택은 총요금에서 차감하지 않습니다.</p>
+    <h2>실제 요금 비교</h2>
+    <div class="metrics two" id="costMetrics"></div>
+    <p class="disclaimer">기본 비교는 3개월 총요금입니다. 두 번째 항목은 6개월·12개월 같은 고정값이 아니라 이 요금제의 실제 할인 적용기간을 그대로 계산합니다. 할인 종료 후에는 정상요금을 별도로 표시합니다.</p>
   </section>
 
   <section class="section">
@@ -43,15 +44,8 @@
 <script src="./data.live.js"></script>
 <script>
 (()=>{"use strict";
-const D=window.PLAN_FINDER_DATA, q=new URLSearchParams(location.search), id=q.get("id"), p=D.rows.find(x=>x.id===id), $=x=>document.getElementById(x), won=n=>n==null?"공식 검증 대기":new Intl.NumberFormat("ko-KR").format(n)+"원";
-const total=(plan,m)=>{
-  if(plan.rankingEligible===false)return null;
-  if(plan.costs&&Number.isFinite(plan.costs[String(m)]))return plan.costs[String(m)];
-  if(plan.lifetime||plan.months==null)return plan.promo*m;
-  return Math.min(m,plan.months)*plan.promo+Math.max(0,m-plan.months)*plan.after;
-};
-const selected=[3,6,12].includes(Number(q.get("months")))?Number(q.get("months")):3;
-const backParams=new URLSearchParams();["profile","network","voice","sms","speed","brand","months"].forEach(k=>{if(q.has(k))backParams.set(k,q.get(k))});$("backLink").href="./index.html"+(backParams.toString()?"?"+backParams.toString():"");
+const D=window.PLAN_FINDER_DATA,q=new URLSearchParams(location.search),id=q.get("id"),p=D.rows.find(x=>x.id===id),$=x=>document.getElementById(x),won=n=>n==null?"공식 검증 대기":new Intl.NumberFormat("ko-KR").format(n)+"원";
+const backParams=new URLSearchParams();["profile","network","voice","sms","speed","brand"].forEach(k=>{if(q.has(k))backParams.set(k,q.get(k))});$("backLink").href="./index.html"+(backParams.toString()?"?"+backParams.toString():"");
 if(!p){$("post").innerHTML='<div class="empty">요금제를 찾을 수 없습니다.<br><br><a class="btn" href="./index.html">목록으로 이동</a></div>';return}
 document.title=p.name+" · 상세정보";
 $("crumb").textContent=p.brand+" · "+p.network+"망 · "+(p.technology||"")+" · 요금제 상세";
@@ -59,12 +53,19 @@ $("title").textContent=p.name;
 const dataText=(p.dataLabel||p.data+"GB"+(p.daily?" + 매일 "+p.daily+"GB":""))+(p.qos?" 소진 후 최대 "+p.qos+"Mbps":"");
 const priceText=p.lifetime?"평생 월 "+won(p.promo):(p.ongoing||p.months==null)?"월 "+won(p.promo):"현재 할인요금 월 "+won(p.promo)+" · "+p.months+"개월 할인";
 $("subtitle").textContent=dataText+" · "+priceText;
+if(p.priceNotice){$("priceSpecial").hidden=false;$("priceSpecial").className="price-special "+(p.priceNotice.level||"warn");$("priceSpecial").textContent="⚠ "+p.priceNotice.label}
 const voiceChip=p.voice==null?"통화 확인 필요":p.voice==="unlimited"?"통화 무제한":"통화 "+p.voice+"분";const smsChip=p.sms==null?"문자 확인 필요":p.sms==="unlimited"?"문자 무제한":"문자 "+p.sms+"건";const chipTexts=[p.network+"망",p.technology||"",p.category==="capped"?"데이터 제공량형":"데이터 무제한 계열",voiceChip,smsChip].filter(Boolean);
 chipTexts.forEach(t=>{const s=document.createElement("span");s.className="chip";s.textContent=t;$("chips").append(s)});
-[3,6,12].forEach(m=>{const box=document.createElement("div");box.className="metric"+(m===selected?" primary":"");box.innerHTML="<span>"+m+"개월 총요금"+(m===selected?" · 현재 선택":"")+"</span><strong>"+won(total(p,m))+"</strong>";$("costMetrics").append(box)});
+const first=document.createElement("div");first.className="metric primary";first.innerHTML="<span>3개월 총요금 · 기본 비교</span><strong>"+won(p.costs&&p.costs["3"])+"</strong>";$("costMetrics").append(first);
+const second=document.createElement("div");second.className="metric";
+if(p.rankingEligible===false){second.innerHTML="<span>실제 할인기간 총요금</span><strong>공식 검증 대기</strong>"}
+else if(p.lifetime){second.innerHTML="<span>평생요금</span><strong>월 "+won(p.promo)+"</strong>"}
+else if(p.ongoing||p.months==null){second.innerHTML="<span>상시요금</span><strong>월 "+won(p.promo)+"</strong>"}
+else{second.innerHTML="<span>"+p.months+"개월 할인 총요금</span><strong>"+won(p.costs&&p.costs.promo)+"</strong>"}
+$("costMetrics").append(second);
 function row(root,key,value){const a=document.createElement("div");a.className="key";a.textContent=key;const b=document.createElement("div");b.textContent=value;root.append(a,b)}
-if(p.rankingEligible===false)row($("verification"),"관측 정보 범위","월요금·할인개월·사양은 모요 관측 값이며 공식 상세 검증 전 · 총요금 순위 제외");
-row($("specTable"),p.rankingEligible===false?"모요 관측 월요금":"현재 월요금",won(p.promo));
+if(p.rankingEligible===false)row($("verification"),"관측 정보 범위","월요금·할인개월·사양은 외부 비교 채널 관측 값이며 공식 상세 검증 전 · 총요금 순위 제외");
+row($("specTable"),p.rankingEligible===false?"관측 월요금":"현재 월요금",won(p.promo));
 row($("specTable"),"할인 유지기간",p.lifetime?"평생":(p.ongoing||p.months==null)?"별도 할인기간 없음":p.months+"개월");
 row($("specTable"),"할인 종료 후",p.lifetime?"평생 동일":(p.ongoing||p.months==null)?"동일 요금":won(p.after)+"/월");
 row($("specTable"),"데이터",dataText);
@@ -73,14 +74,14 @@ row($("specTable"),"문자",p.sms==null?"세부 제공량 확인 필요":p.sms==
 if(p.additionalVoice)row($("specTable"),"영상/부가통화",p.additionalVoice+"분");
 if(p.wifiFree)row($("specTable"),"Wi-Fi","무료");
 $("benefit").textContent=(p.advertisedEffectivePrice!=null?"공식 광고상 혜택 체감가 월 "+won(p.advertisedEffectivePrice)+" · 순위 미반영 · ":"")+p.benefit;
-$("warning").textContent="⚠ "+p.warning;
+$("warning").textContent="⚠ "+(p.priceNotice?p.priceNotice.label+" · ":"")+p.warning;
 row($("conditionTable"),"요금 할인 조건",(p.priceConditionBadges&&p.priceConditionBadges.length)?p.priceConditionBadges.join(" · "):p.activation);
 row($("conditionTable"),"혜택 조건",(p.benefitConditionBadges&&p.benefitConditionBadges.length)?p.benefitConditionBadges.join(" · "):(p.benefitLines&&p.benefitLines.length?"상세조건 추가 검증 필요":"별도 제휴혜택 없음"));
 row($("conditionTable"),"혜택 반영 원칙","상품권·포인트·제휴할인은 총요금에서 차감하지 않음");
 row($("verification"),"현재 상태",p.verification);
 if(p.detailVerified)row($("verification"),"상세조건","공식 상세페이지 조건 검증 완료");
-row($("verification"),"비교 기준","공식 요금·할인기간·할인 종료 후 요금");
-const mx=p.moyoCrosscheck||{};const moyoText=!mx.matched?"모요 매칭 없음/추가 확인 필요":mx.priceStatus==="needs_official_detail_review"?"공식 이름·주변 가격 관측 · 기간/사양 검증 대기":mx.priceStatus==="agree"?"모요와 가격·할인기간 일치":("모요와 차이 있음 ("+(mx.priceDiffs||[]).join(", ")+")");row($("verification"),"모요 가격 비교",moyoText);
+row($("verification"),"비교 기준","3개월 총요금 + 실제 할인 적용기간 총요금");
+const mx=p.moyoCrosscheck||{};const compareText=!mx.matched?"외부 비교 채널 매칭 없음/추가 확인 필요":mx.priceStatus==="needs_official_detail_review"?"공식 이름·주변 가격 관측 · 기간/사양 검증 대기":mx.priceStatus==="agree"?"외부 비교 채널과 가격·할인기간 일치":("외부 비교 채널과 차이 있음");row($("verification"),"가격 교차검증",compareText);
 const specLabels={qos_mbps:"데이터 소진 후 속도",base_data_gb:"기본 데이터",daily_gb:"매일 데이터",voice:"통화",sms:"문자"};
 if((mx.specDiffs||[]).length)row($("verification"),"사양 검토 필요",mx.specDiffs.map(k=>specLabels[k]||"제공 사양").join(" · ")+" 차이 · 공식 정보를 기준으로 표시");
 row($("verification"),"마지막 수집",D.updatedAt||"확인 중");
