@@ -1,6 +1,6 @@
 from pathlib import Path
 import json
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 
 ROOT = Path(__file__).resolve().parents[1]
 raw = (ROOT / 'data.live.js').read_text(encoding='utf-8')
@@ -44,11 +44,15 @@ with sync_playwright() as pw:
     page.locator('.extras summary').click()
     page.select_option('#brand','티플러스')
     count=page.locator('.result-link').count()
-    page.locator('#results .result-link').first.click()
-    assert page.locator('.metric').count()==2
+    with page.expect_navigation(wait_until='load'):
+        page.locator('#results .result-link').first.click()
+    page.screenshot(path='preview-detail.png')
+    assert not errors,errors
+    expect(page.locator('.metric')).to_have_count(2)
     assert page.locator('.metric.primary').inner_text().startswith('3개월')
     assert page.locator('.post').evaluate('(el)=>getComputedStyle(el).borderRadius')=='22px'
-    page.locator('#backLink').click()
+    with page.expect_navigation(wait_until='load'):
+        page.locator('#backLink').click()
     assert page.locator('#profile').input_value()=='7plus'
     assert page.locator('#brand').input_value()=='티플러스'
     assert page.locator('.result-link').count()==count
