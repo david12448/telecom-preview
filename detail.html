@@ -102,7 +102,13 @@ row($("verification"),"비교 기준","3개월 총요금 + 실제 할인 적용�
 const mx=p.moyoCrosscheck||{};const compareText=!mx.matched?"외부 비교 채널 매칭 없음/추가 확인 필요":mx.priceStatus==="needs_official_detail_review"?"공식 이름·주변 가격 관측 · 기간/사양 검증 대기":mx.priceStatus==="agree"?"외부 비교 채널과 가격·할인기간 일치":("외부 비교 채널과 차이 있음");row($("verification"),"가격 교차검증",compareText);
 if((mx.specDiffs||[]).length)row($("verification"),"사양 검토 필요",mx.specDiffs.join(" · ")+" 차이 · 공식 정보를 기준으로 표시");
 row($("verification"),"마지막 수집",D.updatedAt||"확인 중");
-const sourceRoot=$("sourceLinks");const links=p.outboundLinks||[];links.forEach(link=>{const a=document.createElement("a");a.className="btn"+(link.source==="official"?" primary":"");a.href=link.url;a.target="_blank";a.rel="noopener noreferrer";a.textContent=link.label+" ↗";sourceRoot.append(a)});
+const sourceRoot=$("sourceLinks");const links=p.outboundLinks||[];
+// The deployment may supply a reviewed HTTPS service origin. No destinations are shipped.
+const configuredBase=window.OUTBOUND_SERVICE_ORIGIN;
+let outboundBase=null;
+try{const u=new URL(configuredBase);if(u.protocol==="https:"&&!u.username&&!u.password&&u.pathname==="/"&&!u.search&&!u.hash)outboundBase=u.origin}catch(e){}
+links.forEach(link=>{const a=document.createElement(outboundBase?"a":"button");a.className="btn"+(link.source==="official"?" primary":"");a.textContent=link.label+" ↗";if(outboundBase){a.href=outboundBase+"/out/"+encodeURIComponent(link.id);a.target="_blank";a.rel="noopener noreferrer"}else{a.disabled=true;a.classList.add("disabled");a.title="원본 보기 서버 연결 준비 중"}sourceRoot.append(a)});
+if(links.length&&!outboundBase){const note=document.createElement("p");note.className="muted";note.textContent="원본 보기 서버 연결 준비 중입니다.";sourceRoot.append(note)}
 })();
 </script></body></html>
 
