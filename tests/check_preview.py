@@ -9,6 +9,9 @@ rows = data['rows']
 ranked = [row for row in rows if row.get('rankingEligible') is not False]
 assert rows and len({r['id'] for r in rows}) == len(rows)
 for row in rows:
+    for link in row.get('outboundLinks',[]):
+        assert set(link)=={'source','label','id'}
+        assert link['id'].startswith('o-') and 'http' not in json.dumps(link)
     assert set(row['costs']) == {'3','promo'}
     if row.get('rankingEligible') is False:
         assert all(value is None for value in row['costs'].values())
@@ -68,8 +71,14 @@ with sync_playwright() as pw:
     promo=next(r for r in ranked if r['months'] is not None)
     page.goto(root+'/detail.html?id='+promo['id'])
     assert f"{promo['months']}개월 할인 총요금" in page.locator('#costMetrics').inner_text()
-    assert page.locator('#sourceLinks .disabled').count()==0
+    assert page.locator('#sourceLinks a').count()==0
+    assert page.locator('#sourceLinks button:disabled').count()>0
     page.screenshot(path='preview-detail.png')
+    page.add_init_script("window.OUTBOUND_SERVICE_ORIGIN='https://outbound.example.test'")
+    page.goto(root+'/detail.html?id='+promo['id'])
+    hrefs=page.locator('#sourceLinks a').evaluate_all('(links)=>links.map(a=>a.href)')
+    assert hrefs and all(href.startswith('https://outbound.example.test/out/o-') for href in hrefs)
+    assert page.locator('#sourceLinks button:disabled').count()==0
     page.goto(root+'/detail.html?id=missing')
     assert '요금제를 찾을 수 없습니다' in page.locator('#post').inner_text()
     page.goto(root+'/index.html')
